@@ -1,4 +1,4 @@
-# Everything Available
+# Everything Available - Parkitect Mod
 
 <img src="preview.png" alt="Everything Available" width="400">
 
