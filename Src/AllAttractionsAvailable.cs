@@ -1,20 +1,27 @@
 ﻿using HarmonyLib;
 
-using System.IO;
-
 using UnityEngine;
 
 namespace AllAttractionsAvailable
 {
+    /// <summary>
+    /// Treats chosen research categories (all of them by default) as already researched in scenarios. Everything the
+    /// game gates behind research asks <see cref="ResearchController"/>, so answering there covers the build menus,
+    /// blueprints, and park stats at once, and keeps those items out of the research queue. The park's saved research is
+    /// never changed, so turning a category off puts it back exactly as it was.
+    /// </summary>
     public class AAA : AbstractMod, IModSettings
     {
-        public const string VERSION_NUMBER = "241017";
+        public const string VERSION_NUMBER = "261025";
+        public const string IDENTIFIER = "AllAttractionsAvailable";
 
-        public override string getIdentifier() => "AllAttractionsAvailable";
+        private Harmony harmony;
 
-        public override string getName() => "All Attractions Available";
+        public override string getIdentifier() => IDENTIFIER;
 
-        public override string getDescription() => @"Forces all attractions to be considered available.";
+        public override string getName() => "Everything Available";
+
+        public override string getDescription() => @"Skips research for rides, shops, deco, and park statistics. Each category can be switched off in the mod settings.";
 
         public override string getVersionNumber() => VERSION_NUMBER;
 
@@ -22,92 +29,124 @@ namespace AllAttractionsAvailable
 
         public override bool isRequiredByAllPlayersInMultiplayerMode() => false;
 
-        public GameObject go { get; private set; }
-        public static AAA Instance;
-        private Harmony _harmony;
-
-        private static bool debug_mode = false;
-        public static bool MOD_ENABLED = false;
-
-        public static string _local_mods_directory = "";
-
-
-
-        public static void AAADebug(string debug_string, bool always_show = false)
-        {
-            if (debug_mode || always_show)
-            {
-                Debug.LogWarning("AllAttractionsAvailable: " + debug_string);
-
-                if (_local_mods_directory != "")
-                    File.AppendAllText(_local_mods_directory + "/AllAttractionsAvailable.txt", "AllAttractionsAvailable: " + debug_string + "\n");
-            }
-
-            if (File.Exists(_local_mods_directory + "/AAA_debug"))
-            {
-                debug_mode = true;
-                //AAADebug("Found debug flag file.");
-            }
-        }
-
-        public AAA()
-        {
-            _local_mods_directory = GameController.modsPath;
-
-
-        }
-
         public override void onEnabled()
         {
-            Instance = this;
-
-            if (!MOD_ENABLED)
-            {
-                _harmony = new Harmony(getIdentifier());
-                _harmony.PatchAll();
-                MOD_ENABLED = true;
-                AAADebug(debug_string: "ENABLING AAA", always_show: true);
-            }
-
-            AAADebug("Modspath: " + GameController.modsPath, always_show: true);
-            AAADebug("ModspathRel: " + GameController.modsPathRelative, always_show: true);
-
-            go = new GameObject();
-            go.name = "AAA GameObject";
+            harmony = new Harmony(IDENTIFIER);
+            harmony.PatchAll(typeof(AAA).Assembly);
         }
+
         public override void onDisabled()
         {
-            UnityEngine.Object.DestroyImmediate(go);
-
-            if (MOD_ENABLED)
-            {
-                _harmony.UnpatchAll(getIdentifier());
-                MOD_ENABLED = false;
-                AAADebug(debug_string: "DISABLING AAA", always_show: true);
-            }
+            harmony?.UnpatchAll(IDENTIFIER);
+            harmony = null;
         }
 
         public void onDrawSettingsUI()
         {
+            GUILayout.Label("Already researched:");
+            foreach (AAASettings.Toggle toggle in AAASettings.All)
+                toggle.Value = GUILayout.Toggle(toggle.Value, " " + toggle.Label);
         }
+
+        public void onSettingsOpened() { }
 
         public void onSettingsClosed()
         {
+            PlayerPrefs.Save();
         }
+    }
 
-        public void onSettingsOpened()
+    /// <summary>Per-player switch for each research category, all on by default, kept in PlayerPrefs.</summary>
+    public static class AAASettings
+    {
+        public sealed class Toggle
         {
-        }
+            private readonly string key;
+            private bool? value;
 
-        [HarmonyPatch(typeof(Attraction))] // Target the Attraction class
-        [HarmonyPatch("isAvailable")]      // Target the method isAvailable
-        class AttractionIsAvailablePatch
-        {
-            static bool Prefix(ref bool __result)
+            public ResearchCategoryType Category { get; }
+
+            public string Label { get; }
+
+            public Toggle(ResearchCategoryType category, string label)
             {
-                AAADebug("Setting Available.");
-                __result = true; // Always return true
-                return false;    // Skip the original method
+                key = "AAA_Unlock_" + category;
+                Category = category;
+                Label = label;
+            }
+
+            // Cached, since research checks run for every buildable object whenever a build menu refreshes.
+            public bool Value
+            {
+                get
+                {
+                    if (value == null)
+                        value = PlayerPrefs.GetInt(key, 1) == 1;
+                    return value.Value;
+                }
+                set
+                {
+                    if (this.value == value)
+                        return;
+
+                    this.value = value;
+                    PlayerPrefs.SetInt(key, value ? 1 : 0);
+                }
+            }
+        }
+
+        public static readonly Toggle[] All =
+        {
+            new Toggle(ResearchCategoryType.CALM_RIDE, "Calm rides"),
+            new Toggle(ResearchCategoryType.THRILL_RIDE, "Thrill rides"),
+            new Toggle(ResearchCategoryType.COASTER, "Coasters"),
+            new Toggle(ResearchCategoryType.TRANSPORT_RIDE, "Transport rides"),
+            new Toggle(ResearchCategoryType.WATER_RIDE, "Water rides"),
+            new Toggle(ResearchCategoryType.SHOPS, "Shops"),
+            new Toggle(ResearchCategoryType.DECO, "Deco and path attachments"),
+            new Toggle(ResearchCategoryType.STATISTICS, "Park statistics"),
+        };
+
+        public static bool IsSkipped(ResearchCategoryType category)
+        {
+            foreach (Toggle toggle in All)
+            {
+                if (toggle.Category == category)
+                    return toggle.Value;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Items in skipped categories count as unlocked and stop being researchable. The game's own item list decides the
+    /// category, and it only holds content from DLCs the player owns, so nothing outside that gets unlocked.
+    /// </summary>
+    public static class ResearchPatch
+    {
+        private static bool IsSkipped(ResearchController research, string referenceName)
+        {
+            ResearchItem item = research.getItem(referenceName);
+            return item != null && AAASettings.IsSkipped(item.category);
+        }
+
+        [HarmonyPatch(typeof(ResearchController), nameof(ResearchController.isUnlocked))]
+        public static class UnlockedPatch
+        {
+            private static void Postfix(ResearchController __instance, string referenceName, ref bool __result)
+            {
+                if (!__result && IsSkipped(__instance, referenceName))
+                    __result = true;
+            }
+        }
+
+        [HarmonyPatch(typeof(ResearchController), nameof(ResearchController.isResearchable))]
+        public static class ResearchablePatch
+        {
+            private static void Postfix(ResearchController __instance, string referenceName, ref bool __result)
+            {
+                if (__result && IsSkipped(__instance, referenceName))
+                    __result = false;
             }
         }
     }
