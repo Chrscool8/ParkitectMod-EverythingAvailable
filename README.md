@@ -2,38 +2,33 @@
 
 <img src="preview.png" alt="Everything Available" width="400">
 
-Skip research in scenarios. Rides, shops, deco, and park stats are all unlocked from the start. Have fun!
+Skip research in scenarios. Rides, shops, deco, and park stats are all unlocked from the start.
 
 **[Get it on the Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3350492448)**
 
 ## Description
 
-Who has time for research.
-
-Everything that's normally locked behind research in a scenario is just available. Build whatever you want right away. Each research category can be switched off in the mod settings if you only want some of it.
+Everything that's normally locked behind research in a scenario is just available. Each research category can be switched off in the mod settings.
 
 ## How to Use
 
-- Just turn it on and load a scenario with research.
+- Load a scenario with research and it's all there.
 - Mod settings have a checkbox for each category: calm rides, thrill rides, coasters, transport rides, water rides, shops, deco and path attachments, and park statistics. All on by default.
 
 ## Features
 
-- Everything you skip shows up in the build menus right away.
-- Blueprints with locked stuff in them load in full instead of quietly skipping pieces.
-- Research teams don't waste money researching things you can already build.
-- Your save's research progress is never touched. Switch a category off and it goes right back to how it was.
+- Blueprints with locked stuff in them load in full.
+- Research teams don't spend money on things you can already build.
 - Only unlocks content from DLCs you own.
 
 ## Updates
 
 ### 26/10/25
 
-- Renamed! All Attractions Available is now Everything Available, because it does way more than rides now.
+- Renamed! All Attractions Available is now Everything Available.
 - Checkboxes! Pick which research to skip in the mod settings.
-- Rebuilt to hook into research itself, so the build menus, blueprints, research panel, and park stats all agree.
-- Blueprints with locked rides now load in full.
-- Research teams no longer waste money on things you can already build.
+- Shops, deco, and park stats can be skipped now too.
+- Blueprints with locked rides load in full now.
 - Updated for the latest Parkitect version.
 
 ### 24/10/17
